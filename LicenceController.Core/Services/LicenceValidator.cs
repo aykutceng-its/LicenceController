@@ -78,103 +78,112 @@ namespace LicenceController.Core.Services
                 var publicKey = _registryHelper.GetPublicKey();
                 var hardwareID = CachedInfo.GetHardwareId(_hardwareHelper);
 
-                LogHelper.LogToFile("ForceLicenceCheck: Public key alındı: " + publicKey);
-                LogHelper.LogToFile("ForceLicenceCheck: Hardware ID alındı: " + hardwareID);
-                if (string.IsNullOrEmpty(publicKey))
-                {
-                    LogHelper.LogToFile("ForceLicenceCheck: Public key boş geldi.");
-                    SaveResultToCache(false, "", "");
-                    return;
-                }
-                if (string.IsNullOrEmpty(hardwareID))
-                {
-                    LogHelper.LogToFile("ForceLicenceCheck: HardwareID boş geldi.");
-                    SaveResultToCache(false, "", "");
-                    return;
-                }
+                // --- YOL DÜZENLEMESİ ---
+                // Docker'da /app/data gibi bir yere volume bağladığımız için 
+                // Öncelikle bir ortam değişkeni veya sabit bir linux yolu kontrolü yapmalıyız.
+                string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string licenceFolder = Path.Combine(baseDirectory, "licence");
 
-
-                string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                string licenceFolder = Path.Combine(appDataPath, "ITS");
-
-                if (!Directory.Exists(licenceFolder))
+                if (!Directory.Exists(licenceFolder)) 
                 {
                     Directory.CreateDirectory(licenceFolder);
                 }
 
+                // Dosya yollarını bu güvenli klasör üzerinden kuruyoruz
                 string licenceFilePath = Path.Combine(licenceFolder, "Licence.json");
+                string tokenPath = Path.Combine(licenceFolder, ".activation.token");
+                // -----------------------
+
                 if (!File.Exists(licenceFilePath))
                 {
-                    LogHelper.LogToFile("ForceLicenceCheck: Licence.json dosyası bulunamadı. - File Path: " + licenceFilePath);
+                    LogHelper.LogToFile($"ForceLicenceCheck: Licence.json bulunamadı. Path: {licenceFilePath}");
                     SaveResultToCache(false, publicKey, hardwareID);
                     return;
                 }
+
                 var encryptedJSON = File.ReadAllText(licenceFilePath);
                 var signedJsonText = rsaHelper.DecryptString(encryptedJSON);
-                if(string.IsNullOrEmpty(signedJsonText))
+
+                if (string.IsNullOrEmpty(signedJsonText))
                 {
-                    LogHelper.LogToFile("ForceLicenceCheck: DecryptString boş veya hatalı çıktı verdi.");
+                    LogHelper.LogToFile("ForceLicenceCheck: Decrypt başarısız.");
                     SaveResultToCache(false, "", "");
                     return;
+                }
+
+                // --- MÜHÜR (TOKEN) KONTROLÜ ---
+                if (File.Exists(tokenPath))
+                {
+                    var existingToken = File.ReadAllText(tokenPath);
+                    var expectedToken = CacheSignatureHelper.ComputeHmac(hardwareID, publicKey);
+                    
+                    if (existingToken != expectedToken)
+                    {
+                        LogHelper.LogToFile("KRİTİK: Donanım uyuşmazlığı! Token eşleşmiyor.");
+                        SaveResultToCache(false, publicKey, hardwareID);
+                        return;
+                    }
+                }
+                else
+                {
+                    var newToken = CacheSignatureHelper.ComputeHmac(hardwareID, publicKey);
+                    File.WriteAllText(tokenPath, newToken);
+                    // Linux'ta Hidden attribute farklı işler, o yüzden sadece yazıyoruz
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        File.SetAttributes(tokenPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
                 }
 
                 var jsonLicence = JsonSerializer.Deserialize<Licence>(signedJsonText);
+                if (jsonLicence == null) return;
 
-                if (jsonLicence == null)
+                string modulesString = "";
+                if (jsonLicence.Modules != null && jsonLicence.Modules.Count > 0)
                 {
-                    LogHelper.LogToFile($"ForceLicenceCheck: JSON çözümleme başarısız veya lisans bilgisi bulunamadı.");
-                    SaveResultToCache(false, "", "");
-                    return;
+                    // Generator tarafında OrderBy kullandıysan burada da kullanmalısın
+                    modulesString = string.Join(",", jsonLicence.Modules
+                        .OrderBy(x => x.Key)
+                        .Select(x => $"{x.Key}:{x.Value}"));
                 }
 
-                string JSONData = $"{jsonLicence.CPUID.ToString().Trim()}" +
-                    $"|||{jsonLicence.MAC.ToString().Trim()}" +
-                    $"|||{jsonLicence.DISKNO.ToString().Trim()}" +
-                    $"|||{jsonLicence.TYPE.ToString().Trim()}" +
-                    $"|||{jsonLicence.DURATION.ToString().Trim()}" +
-                    $"|||{jsonLicence.CREATED.ToString().Trim()}" +
-                    $"|||{jsonLicence.EXPIRED.ToString().Trim()}";
+                // --- VERİ DOĞRULAMA ---
+                // Şimdi tam JSONData (İmza Kontrolü İçin)
+                string JSONData = $"{jsonLicence.CPUID.Trim()}|||" +
+                                $"{jsonLicence.MAC.Trim()}|||" +
+                                $"{jsonLicence.DISKNO.Trim()}|||" +
+                                $"{jsonLicence.TYPE}|||" +
+                                $"{jsonLicence.DURATION}|||" +
+                                $"{jsonLicence.CREATED.Trim()}|||" +
+                                $"{jsonLicence.EXPIRED.Trim()}|||" +
+                                $"{modulesString}"; // Modüller en sona eklendi
 
-                var signFromJSON = jsonLicence.SIGN;
-                LogHelper.LogToFile($"ForceLicenceCheck: Doğrulanan Veri => {JSONData}");
-                LogHelper.LogToFile($"ForceLicenceCheck: İmzalı Veri => {signFromJSON}");
-
-                bool isVerified = RsaHelper.VerifySignatureWithHash(JSONData, signFromJSON, publicKey);
+                bool isVerified = RsaHelper.VerifySignatureWithHash(JSONData, jsonLicence.SIGN, publicKey);
+                
                 if (!isVerified)
                 {
-                    LogHelper.LogToFile("ForceLicenceCheck: İmza doğrulaması başarısız. JSON verisi geçersiz veya değiştirilmiş.");
+                    LogHelper.LogToFile("ForceLicenceCheck: İmza geçersiz.");
                     SaveResultToCache(false, publicKey, hardwareID);
                     return;
                 }
 
-                var hardwareId = hardwareID;
-
-
-                // Örnek içerik: CPUID|||DISK|||MAC|||TYPE|||CREATE|||EXPIRE
-                var isHardwareMatch = hardwareId == $"{jsonLicence.CPUID}|||{jsonLicence.MAC}|||{jsonLicence.DISKNO}";
-
-                var licenceType = jsonLicence.TYPE;
-                var createDate = DateTime.Parse(jsonLicence.CREATED);
-                var expireDate = licenceType == 0 ? createDate.AddDays(30) : DateTime.Parse(jsonLicence.EXPIRED);
-
+                // Donanım eşleşmesi (CPUID + MAC + DISK)
+                var isHardwareMatch = hardwareID == $"{jsonLicence.CPUID}|||{jsonLicence.MAC}|||{jsonLicence.DISKNO}";
+                
+                // Tarih Kontrolü
+                DateTime createDate = DateTime.ParseExact(jsonLicence.CREATED, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                DateTime expireDate = jsonLicence.TYPE == 0 ? createDate.AddDays(30) : DateTime.ParseExact(jsonLicence.EXPIRED, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                
                 var isValid = isHardwareMatch && DateTime.Now >= createDate && DateTime.Now <= expireDate;
-                LogHelper.LogToFile($"ForceLicenceCheck: Donanım eşleşmesi: {isHardwareMatch}, Geçerlilik durumu: {isValid}, " +
-                    $"CPU: {jsonLicence.CPUID}, " +
-                    $"MAC:{jsonLicence.MAC}, " +
-                    $"DISK:{jsonLicence.DISKNO}, " +
-                    $"Lisans tipi: {licenceType}, " +
-                    $"LisansSüresi:{jsonLicence.DURATION}, " +
-                    $"Oluşturulma tarihi: {createDate}, Bitiş tarihi: {expireDate}");
-                SaveResultToCache(isValid, publicKey, hardwareId);
+
+                LogHelper.LogToFile($"Sonuç: {isValid}. Match: {isHardwareMatch}. Expire: {expireDate}");
+                SaveResultToCache(isValid, publicKey, hardwareID, jsonLicence.Modules);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 LogHelper.LogToFile("ForceLicenceCheck-ERROR: " + ex.Message);
-                return;
             }
         }
 
-        private void SaveResultToCache(bool isValid, string publicKey, string hardwareId)
+        private void SaveResultToCache(bool isValid, string publicKey, string hardwareId, Dictionary<string, bool>? modules = null)
         {
             try
             {
@@ -190,12 +199,18 @@ namespace LicenceController.Core.Services
                 }
                 var getCacheKey = CacheKeyProvider.GetCacheKey(publicKey, hardwareId);
                 var rawData = (isValid ? "True" : "False") + "-" + getCacheKey;
-                var signature = CacheSignatureHelper.ComputeHmac(rawData, publicKey);
+
+                var modulesJson = JsonSerializer.Serialize(modules ?? new Dictionary<string, bool>());
+
+                var dataToSign = rawData + "|" + modulesJson;
+
+                var signature = CacheSignatureHelper.ComputeHmac(dataToSign, publicKey);
 
                 var entry = new LicenceCacheEntry
                 {
                     Data = rawData,
-                    Signature = signature
+                    Signature = signature,
+                    ModulesJson = modulesJson
                 };
 
                 _cache.Set(getCacheKey, entry, TimeSpan.FromHours(25));
@@ -206,6 +221,27 @@ namespace LicenceController.Core.Services
                 LogHelper.LogToFile("SaveResultToCache-ERROR: " + ex.Message);
                 return;
             }
+        }
+
+        public bool HasModule(string moduleName)
+        {
+            var publicKey = _registryHelper.GetPublicKey();
+            var hardwareId = CachedInfo.GetHardwareId(_hardwareHelper);
+            var cacheKey = CacheKeyProvider.GetCacheKey(publicKey, hardwareId);
+
+            if (_cache.TryGetValue(cacheKey, out LicenceCacheEntry entry))
+            {
+                // Önce cache imzasını doğrula (Modüller manipüle edilmiş mi?)
+                var dataToSign = entry.Data + "|" + entry.ModulesJson;
+                var expectedSignature = CacheSignatureHelper.ComputeHmac(dataToSign, publicKey);
+                
+                if (entry.Signature == expectedSignature)
+                {
+                    var modules = JsonSerializer.Deserialize<Dictionary<string, bool>>(entry.ModulesJson ?? "{}");
+                    return modules != null && modules.TryGetValue(moduleName, out bool active) && active;
+                }
+            }
+            return false;
         }
     }
 }
