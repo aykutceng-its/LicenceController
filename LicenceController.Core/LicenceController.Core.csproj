@@ -5,7 +5,7 @@
 	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
 	<PackageId>LicenceController.Core</PackageId>
-	<Version>1.0.13</Version>
+	<Version>1.0.14</Version>
 	<Authors>Aykut Cengiz</Authors>
 	<Company>ITS Industrial Yazılım San. Tic. Ltd Şti.</Company>
 	<Description>Offline olarak cihaz bazlı lisans doğrulama içeren .NET standard kütüphane.</Description>

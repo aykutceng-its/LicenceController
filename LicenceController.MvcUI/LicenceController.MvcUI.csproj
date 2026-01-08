@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>LicenceController.MvcUI</PackageId>
-    <Version>1.0.6</Version>
+    <Version>1.0.14</Version>
     <Authors>Aykut Cengiz</Authors>
     <Company>ITS Industrial Yazılım San. Tic. Ltd Şti.</Company>
     <Description>Offline olarak cihaz bazlı lisans doğrulama içeren .NET MVC/Razor kütüphanesi.</Description>
@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="LicenceController.Core" Version="1.0.6" />
+    <PackageReference Include="LicenceController.Core" Version="1.0.14" />
   </ItemGroup>
 
   <ItemGroup>

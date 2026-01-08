@@ -25,84 +25,50 @@ namespace LicenceController.MvcUI.Controllers
         [HttpPost]
         public IActionResult UploadLicence(string publicKey, IFormFile licenceFile)
         {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            // Klasör ismini Core ile eşitleyelim (Örn: licence)
+            var licenceFolder = Path.Combine(baseDir, "licence"); 
+
             try
             {
-                if (string.IsNullOrEmpty(publicKey))
+                if (string.IsNullOrEmpty(publicKey) || licenceFile == null) return View("Index");
+
+                if (!Directory.Exists(licenceFolder)) Directory.CreateDirectory(licenceFolder);
+
+                // 1. PublicKey Kaydet
+                System.IO.File.WriteAllText(Path.Combine(licenceFolder, "pubKey.pub"), publicKey.Trim());
+
+                // 2. Lisans Dosyasını Kaydet
+                var filePath = Path.Combine(licenceFolder, "Licence.json");
+                using (var stream = new FileStream(filePath, FileMode.Create))
                 {
-                    LogHelper.LogToFile("Public Key boş gönderildi!");
-                    return View("Index");
+                    licenceFile.CopyTo(stream);
                 }
-                if (licenceFile == null || licenceFile.Length == 0)
-                {
-                    LogHelper.LogToFile("Lisans dosyası seçilmedi!");
-                    return View("Index");
-                }
-                // 1. PublicKey'i dosyaya yaz
-                try
-                {
-                    var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                    var licenceFolder = Path.Combine(baseDir, "ITS");
-                    if (!Directory.Exists(licenceFolder))
-                    {
-                        Directory.CreateDirectory(licenceFolder);
-                        LogHelper.LogToFile($"Klasör oluşturuldu: {licenceFolder}");
-                    }
-                    var publicKeyFilePath = Path.Combine(licenceFolder, "pubKey.pub");
-                    using (var writer = new StreamWriter(publicKeyFilePath, false))
-                    {
-                        writer.Write(publicKey);
-                    }
-                    LogHelper.LogToFile($"PublicKey dosyaya kaydedildi: {publicKeyFilePath}");
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    LogHelper.LogToFile($"PublicKey dosyası yazma izni hatası: {ex.Message}");
-                    return View("Index");
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.LogToFile($"PublicKey dosyası kaydedilirken hata: {ex.Message}");
-                    return View("Index");
-                }
-                // 2. Lisans dosyasını kaydet
-                try
-                {
-                    var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                    var licenceFolder = Path.Combine(baseDir, "ITS");
-                    if (!Directory.Exists(licenceFolder))
-                    {
-                        Directory.CreateDirectory(licenceFolder);
-                        LogHelper.LogToFile($"Klasör oluşturuldu: {licenceFolder}");
-                    }
-                    var licenceFilePath = Path.Combine(licenceFolder, "Licence.json");
-                    using (var stream = new FileStream(licenceFilePath, FileMode.Create))
-                    {
-                        licenceFile.CopyTo(stream);
-                    }
-                    LogHelper.LogToFile($"Lisans dosyası kaydedildi: {licenceFilePath}");
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    LogHelper.LogToFile($"Lisans dosyası yazma izni hatası: {ex.Message}");
-                    return View("Index");
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.LogToFile($"Lisans dosyası kaydedilirken hata: {ex.Message}");
-                    return View("Index");
-                }
-                // 3. Cache'i güncelle
-                LogHelper.LogToFile("Cache güncellemesi başlatıldı (ForceLicenceCheck çağrıldı)");
+
+                // 3. KRİTİK: Eski mührü temizle (Yeni donanıma uyum sağlaması için)
+                var tokenPath = Path.Combine(licenceFolder, ".activation.token");
+                if (System.IO.File.Exists(tokenPath)) System.IO.File.Delete(tokenPath);
+
+                // 4. Sistemi Tetikle
                 _licenceValidator.ForceLicenceCheck();
-                LogHelper.LogToFile("Cache güncellemesi tamamlandı");
-                LogHelper.LogToFile("Lisans başarıyla yüklendi!");
+
+                // 5. Kontrol et ve yönlendir
+                if (_licenceValidator.IsLicenceValid())
+                {
+                    LogHelper.LogToFile("Yeni lisans yüklendi ve doğrulandı. Yönlendiriliyor...");
+                    return RedirectToAction("Index", "Home"); 
+                }
+                
+                ViewData["ErrorL"] = "Yüklenen lisans bu makine için geçerli değil!";
                 return View("Index");
             }
             catch (Exception ex)
             {
-                LogHelper.LogToFile($"Beklenmeyen hata: {ex.Message}");
+                LogHelper.LogToFile($"Yükleme Hatası: {ex.Message}");
+                ViewData["ErrorL"] = "Sistemsel bir hata oluştu.";
                 return View("Index");
             }
         }
+    
     }
 } 

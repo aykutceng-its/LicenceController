@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using LicenceController.Core.Interfaces;
+using LicenceController.Core.Helpers;
 
 namespace LicenceController.Core.Helpers
 {

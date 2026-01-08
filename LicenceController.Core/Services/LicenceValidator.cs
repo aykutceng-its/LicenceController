@@ -4,6 +4,9 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Linq; // OrderBy için şart
+using System.Globalization; // CultureInfo için şart
+using System.Runtime.InteropServices;
 using LicenceController.Core.Helpers;
 using LicenceController.Core.Interfaces;
 using LicenceController.Core.Models;

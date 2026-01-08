@@ -85,4 +85,12 @@ namespace LicenceController.Core.Helpers
         public string GetCpuId() => GetHardwareId().Split("|||")[0];
         public string GetDiskSerial() => GetHardwareId().Split("|||")[2];
     }
+
+    public static class CachedInfo
+    {
+        public static string GetHardwareId(IHardwareHelper hardwareHelper)
+        {
+            return hardwareHelper.GetHardwareId();
+        }
+    }
 }

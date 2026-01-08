@@ -20,7 +20,13 @@ namespace LicenceController.MvcUI.Middleware
             var path = context.Request.Path.Value?.ToLower();
 
             // Static ve licence view isteklerini atla
-            if (path.StartsWith("/licence") || path.StartsWith("/css") || path.StartsWith("/js") || path.Contains(".css") || path.Contains(".js"))
+            if (path.Contains("/licence") || 
+                path.StartsWith("/lib") || 
+                path.StartsWith("/assets") ||
+                path.Contains(".js") || 
+                path.Contains(".css") || 
+                path.Contains(".png") || 
+                path.Contains(".jpg"))
             {
                 await _next(context);
                 return;
@@ -28,8 +34,14 @@ namespace LicenceController.MvcUI.Middleware
 
             if (!_licenceValidator.IsLicenceValid())
             {
-                context.Response.Redirect("/Licence/Index");
-                return;
+
+                _licenceValidator.ForceLicenceCheck();
+
+                if (!_licenceValidator.IsLicenceValid())
+                {
+                    context.Response.Redirect("/Licence/Index");
+                    return;
+                }
             }
 
             await _next(context);
