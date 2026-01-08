@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+	<PackageId>LicenceController.Core</PackageId>
+	<Version>1.0.13</Version>
+	<Authors>Aykut Cengiz</Authors>
+	<Company>ITS Industrial Yazılım San. Tic. Ltd Şti.</Company>
+	<Description>Offline olarak cihaz bazlı lisans doğrulama içeren .NET standard kütüphane.</Description>
+	<PackageTags>licence;offline;validation;hardware</PackageTags>
+	<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+	<NeutralLanguage>tr</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <PackageReference Include="System.Management" Version="9.0.6" />
+  </ItemGroup>
+
+</Project>

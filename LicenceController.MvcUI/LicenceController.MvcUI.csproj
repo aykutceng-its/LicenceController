@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>LicenceController.MvcUI</PackageId>
+    <Version>1.0.6</Version>
+    <Authors>Aykut Cengiz</Authors>
+    <Company>ITS Industrial Yazılım San. Tic. Ltd Şti.</Company>
+    <Description>Offline olarak cihaz bazlı lisans doğrulama içeren .NET MVC/Razor kütüphanesi.</Description>
+    <PackageTags>licence;offline;validation;hardware;mvc;razor</PackageTags>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <NeutralLanguage>tr</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LicenceController.Core" Version="1.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LicenceController.Core\LicenceController.Core.csproj" />
+  </ItemGroup>
+
+</Project>

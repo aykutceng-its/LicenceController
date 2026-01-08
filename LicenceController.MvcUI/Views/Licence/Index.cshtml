@@ -1,0 +1,39 @@
+@{
+    ViewData["Title"] = "Lisans Hatası";
+	Layout = "~/Views/Shared/_LayoutNoBar.cshtml";
+}
+<style>
+body { background: #fffbe6; color: #b71c1c; font-family: sans-serif; }
+h1 { color: #b71c1c; }
+.error-box { background: #ffebee; color: #b71c1c; border: 1px solid #b71c1c; padding: 10px; margin-bottom: 15px; }
+.success-box { background: #e8f5e8; color: #2e7d32; border: 1px solid #2e7d32; padding: 10px; margin-bottom: 15px; }
+.debug-box { background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; padding: 10px; margin-bottom: 15px; font-family: monospace; }
+</style>
+
+@if (ViewData["ErrorL"] != null)
+{
+    <div class="error-box">@ViewData["ErrorL"]</div>
+}
+
+@if (ViewData["SuccessL"] != null)
+{
+    <div class="success-box">@ViewData["SuccessL"]</div>
+}
+
+@if (ViewData["DebugL"] != null)
+{
+    <div class="debug-box">@ViewData["DebugL"]</div>
+}
+
+<h1>Lisansınız geçersiz veya süresi dolmuş.</h1>
+<p>Lütfen aşağıdan yeni lisans bilgilerinizi girin:</p>
+<form asp-action="UploadLicence" method="post" enctype="multipart/form-data">
+    <label>Public Key (base64):</label><br />
+    <textarea name="publicKey" rows="4" cols="60" required></textarea><br /><br />
+    <label>Lisans Dosyası (.json):</label><br />
+    <input type="file" name="licenceFile" accept=".json" required /><br /><br />
+    <button type="submit">Kaydet</button>
+</form>
+<script>
+console.log("Lisans uyarı sayfası yüklendi.");
+</script> 
