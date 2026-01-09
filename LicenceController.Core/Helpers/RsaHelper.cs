@@ -46,8 +46,6 @@ namespace LicenceController.Core.Helpers
         {
             try
             {
-                LogHelper.LogToFile($"DecryptString: Başladı. CipherText - {cipherTextBase64}");
-
                 var fullCipher = Convert.FromBase64String(cipherTextBase64);
                 if (fullCipher.Length < 16)
                 {
@@ -61,11 +59,9 @@ namespace LicenceController.Core.Helpers
                     LogHelper.LogToFile("DecryptString: Secret key oluşturulamadı!");
                     return string.Empty;
                 }
-                LogHelper.LogToFile($"DecryptString: SecretKey - {Convert.ToBase64String(secretKey)}");
 
                 byte[] iv = fullCipher.Take(16).ToArray();
                 byte[] cipher = fullCipher.Skip(16).ToArray();
-                LogHelper.LogToFile($"DecryptString: IV - {Convert.ToBase64String(iv)}");
 
                 using var aes = Aes.Create();
                 aes.Key = secretKey;
@@ -78,7 +74,6 @@ namespace LicenceController.Core.Helpers
                 using var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read);
                 using var reader = new StreamReader(cs);
                 var result = reader.ReadToEnd();
-                LogHelper.LogToFile($"DecryptString: Başarılı. \n -={result}=-");
                 return result;
             }
             catch (Exception ex)

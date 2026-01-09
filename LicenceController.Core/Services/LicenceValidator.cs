@@ -171,7 +171,7 @@ namespace LicenceController.Core.Services
                 
                 if (!isVerified)
                 {
-                    LogHelper.LogToFile($"ForceLicenceCheck: İmza geçersiz.\n {JSONData}");
+                    LogHelper.LogToFile($"ForceLicenceCheck: İmza geçersiz.");
                     SaveResultToCache(false, publicKey, hardwareID);
                     return;
                 }

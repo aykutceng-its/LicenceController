@@ -63,15 +63,18 @@ namespace LicenceController.MvcUI.Controllers
                 // 5. Kontrol et ve yönlendir
                 if (_licenceValidator.IsLicenceValid())
                 {
-                    LogHelper.LogToFile("Yeni lisans yüklendi ve doğrulandı. Yönlendiriliyor...");
-                    return Json(new { success = true, message = "Lisans başarıyla yüklendi ve doğrulandı." });
+                    return Json(new 
+                    { 
+                        success = true, 
+                        message = "Lisans başarıyla yüklendi ve doğrulandı." 
+                        redirectUrl = Url.Action("Index", "Home")
+                    });
                 }
                 
                 return Json(new { success = false, message = "Yüklenen lisans bu makine için geçerli değil!" });
             }
             catch (Exception ex)
             {
-                LogHelper.LogToFile($"Yükleme Hatası: {ex.Message}");
                 return Json(new { success = false, message = "Sistemsel bir hata oluştu." });
             }
         }
