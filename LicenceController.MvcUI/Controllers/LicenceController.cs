@@ -17,21 +17,29 @@ namespace LicenceController.MvcUI.Controllers
         {
             _licenceValidator = licenceValidator;
         }
-        public IActionResult Index()
+        public IActionResult Index(string? error = null)
         {
+            ViewData["Error"] = error;
             return View();
         }
 
         [HttpPost]
         public IActionResult UploadLicence(string publicKey, IFormFile licenceFile)
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var baseDir = AppContext.BaseDirectory;
             // Klasör ismini Core ile eşitleyelim (Örn: licence)
             var licenceFolder = Path.Combine(baseDir, "licence"); 
 
             try
             {
-                if (string.IsNullOrEmpty(publicKey) || licenceFile == null) return View("Index");
+                if (string.IsNullOrEmpty(publicKey)) 
+                {
+                    return Json(new { success = false, message = "Public key boş bırakılamaz!" });
+                }
+                if (licenceFile == null) 
+                {
+                    return Json(new { success = false, message = "Lisans dosyası seçilmedi!" });
+                }
 
                 if (!Directory.Exists(licenceFolder)) Directory.CreateDirectory(licenceFolder);
 
@@ -56,17 +64,15 @@ namespace LicenceController.MvcUI.Controllers
                 if (_licenceValidator.IsLicenceValid())
                 {
                     LogHelper.LogToFile("Yeni lisans yüklendi ve doğrulandı. Yönlendiriliyor...");
-                    return RedirectToAction("Index", "Home"); 
+                    return Json(new { success = true, message = "Lisans başarıyla yüklendi ve doğrulandı." });
                 }
                 
-                ViewData["ErrorL"] = "Yüklenen lisans bu makine için geçerli değil!";
-                return View("Index");
+                return Json(new { success = false, message = "Yüklenen lisans bu makine için geçerli değil!" });
             }
             catch (Exception ex)
             {
                 LogHelper.LogToFile($"Yükleme Hatası: {ex.Message}");
-                ViewData["ErrorL"] = "Sistemsel bir hata oluştu.";
-                return View("Index");
+                return Json(new { success = false, message = "Sistemsel bir hata oluştu." });
             }
         }
     

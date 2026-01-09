@@ -9,8 +9,8 @@ namespace LicenceController.Core.Helpers
         {
             try
             {
-                var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                var logPath = Path.Combine(baseDir, "ITS");
+                var baseDir = AppContext.BaseDirectory;
+                var logPath = Path.Combine(baseDir, "logs");
                 if (!Directory.Exists(logPath))
                     Directory.CreateDirectory(logPath);
                 var logFile = Path.Combine(logPath, $"LicenceLog_{DateTime.Now:yyyy-MM-dd}.txt");

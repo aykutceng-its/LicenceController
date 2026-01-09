@@ -17,6 +17,6 @@ namespace LicenceController.Core.Models
         public int TYPE { get; set; }
         public string SIGN { get; set; }
         public string UPDATED { get; set; }
-        public Dictionary<string, bool> Modules { get; set; } = new Dictionary<string, bool>();
+        public Dictionary<string, bool> MODULES { get; set; } = new Dictionary<string, bool>();
     }
 }

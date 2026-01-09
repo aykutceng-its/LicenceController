@@ -16,20 +16,18 @@ namespace LicenceController.Core.Helpers
         {
             try
             {
-                var programDataPath = AppDomain.CurrentDomain.BaseDirectory;;
-                var licenceFolder = Path.Combine(programDataPath, "ITS");
+                var baseDir = AppContext.BaseDirectory;
+                var licenceFolder = Path.Combine(baseDir, "licence");
                 var publicKeyFilePath = Path.Combine(licenceFolder, "pubKey.pub");
 
-                if (!File.Exists(publicKeyFilePath))
+                if (File.Exists(publicKeyFilePath))
                 {
-                    LogHelper.LogToFile("Core: PublicKey dosyası bulunamadı!");
-                    return string.Empty;
+                    return File.ReadAllText(publicKeyFilePath).Trim();
                 }
+                
+                LogHelper.LogToFile("Core: PublicKey dosyası bulunamadı! Aranan Yol: " + publicKeyFilePath);
+                return string.Empty;
 
-                using (var reader = new StreamReader(publicKeyFilePath))
-                {
-                    return reader.ReadToEnd().Trim() ?? string.Empty;
-                }
             }
             catch (Exception ex)
             {

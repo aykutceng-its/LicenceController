@@ -38,7 +38,6 @@ namespace LicenceController.Core.Services
                     LogHelper.LogToFile("Core-IsLicenceValid: Public key boş geldi.");
                     return false;
                 }
-                LogHelper.LogToFile("Core-IsLicenceValid: Public key alındı: " + publicKey);
 
                 var hardwareId = CachedInfo.GetHardwareId(_hardwareHelper);
                 if (string.IsNullOrEmpty(hardwareId))
@@ -46,22 +45,31 @@ namespace LicenceController.Core.Services
                     LogHelper.LogToFile("Core-IsLicenceValid: Hardware ID boş geldi.");
                     return false;
                 }
-                LogHelper.LogToFile("Core-IsLicenceValid: Hardware ID alındı: " + hardwareId);
 
                 var cacheKey = CacheKeyProvider.GetCacheKey(publicKey, hardwareId);
-                LogHelper.LogToFile("Core-IsLicenceValid: Bakılan Cache Name: " + cacheKey);
 
                 bool isCached = _cache.TryGetValue(cacheKey, out LicenceCacheEntry entry);
                 if (isCached)
                 {
-                    LogHelper.LogToFile($"Core-IsLicenceValid: Cache'de veri bulundu. \nData: {entry.Data}\n:{entry.Signature}");
-                    var expectedSignature = CacheSignatureHelper.ComputeHmac(entry.Data, publicKey);
+                    var moduleList = JsonSerializer.Deserialize<Dictionary<string, bool>>(entry.ModulesJson ?? "{}") 
+                     ?? new Dictionary<string, bool>();
+
+                    // 2. Tıpkı yazarken yaptığın gibi string formatına getir (Büyük harf dikkat!)
+                    string modulesString = string.Join(",", moduleList.Select(x => $"{x.Key}:{x.Value.ToString().ToUpper()}"));
+
+                    // 3. dataToSign'ı imza atılırkenki orijinal haline getiriyoruz
+                    var dataToReSign = entry.Data + (moduleList.Any() ? "|" + modulesString : "");
+
+                    // 4. Şimdi imzayı hesapla
+                    var expectedSignature = CacheSignatureHelper.ComputeHmac(dataToReSign, publicKey);
+                    
+                    LogHelper.LogToFile($"Core-IsLicenceValid: Bulunan imza: {entry.Signature}");
                     LogHelper.LogToFile($"Core-IsLicenceValid: Beklenen imza: {expectedSignature}");
                     if (entry.Signature == expectedSignature && entry.Data.StartsWith("True"))
                     {
-                        LogHelper.LogToFile("Core-IsLicenceValid: Cache'deki veri geçerli.");
                         return true;
                     }
+
                 }
                 LogHelper.LogToFile("Core-IsLicenceValid: Cache'de veri bulunamadı veya geçersiz imza.");
                 return false;
@@ -84,7 +92,7 @@ namespace LicenceController.Core.Services
                 // --- YOL DÜZENLEMESİ ---
                 // Docker'da /app/data gibi bir yere volume bağladığımız için 
                 // Öncelikle bir ortam değişkeni veya sabit bir linux yolu kontrolü yapmalıyız.
-                string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string baseDirectory = AppContext.BaseDirectory;
                 string licenceFolder = Path.Combine(baseDirectory, "licence");
 
                 if (!Directory.Exists(licenceFolder)) 
@@ -140,30 +148,30 @@ namespace LicenceController.Core.Services
                 if (jsonLicence == null) return;
 
                 string modulesString = "";
-                if (jsonLicence.Modules != null && jsonLicence.Modules.Count > 0)
+                if (jsonLicence.MODULES != null && jsonLicence.MODULES.Count > 0)
                 {
                     // Generator tarafında OrderBy kullandıysan burada da kullanmalısın
-                    modulesString = string.Join(",", jsonLicence.Modules
+                    modulesString = string.Join(",", jsonLicence.MODULES
                         .OrderBy(x => x.Key)
-                        .Select(x => $"{x.Key}:{x.Value}"));
+                        .Select(x => $"{x.Key.ToUpper()}:{x.Value.ToString().ToLower().Trim()}"));
                 }
 
                 // --- VERİ DOĞRULAMA ---
                 // Şimdi tam JSONData (İmza Kontrolü İçin)
-                string JSONData = $"{jsonLicence.CPUID.Trim()}|||" +
-                                $"{jsonLicence.MAC.Trim()}|||" +
-                                $"{jsonLicence.DISKNO.Trim()}|||" +
-                                $"{jsonLicence.TYPE}|||" +
-                                $"{jsonLicence.DURATION}|||" +
-                                $"{jsonLicence.CREATED.Trim()}|||" +
-                                $"{jsonLicence.EXPIRED.Trim()}|||" +
+                string JSONData = $"{jsonLicence.CPUID.ToString().Trim()}|||" +
+                                $"{jsonLicence.MAC.ToString().Trim()}|||" +
+                                $"{jsonLicence.DISKNO.ToString().Trim()}|||" +
+                                $"{jsonLicence.TYPE.ToString().Trim()}|||" +
+                                $"{jsonLicence.DURATION.ToString().Trim()}|||" +
+                                $"{jsonLicence.CREATED.ToString().Trim()}|||" +
+                                $"{jsonLicence.EXPIRED.ToString().Trim()}|||" +
                                 $"{modulesString}"; // Modüller en sona eklendi
 
                 bool isVerified = RsaHelper.VerifySignatureWithHash(JSONData, jsonLicence.SIGN, publicKey);
                 
                 if (!isVerified)
                 {
-                    LogHelper.LogToFile("ForceLicenceCheck: İmza geçersiz.");
+                    LogHelper.LogToFile($"ForceLicenceCheck: İmza geçersiz.\n {JSONData}");
                     SaveResultToCache(false, publicKey, hardwareID);
                     return;
                 }
@@ -178,7 +186,7 @@ namespace LicenceController.Core.Services
                 var isValid = isHardwareMatch && DateTime.Now >= createDate && DateTime.Now <= expireDate;
 
                 LogHelper.LogToFile($"Sonuç: {isValid}. Match: {isHardwareMatch}. Expire: {expireDate}");
-                SaveResultToCache(isValid, publicKey, hardwareID, jsonLicence.Modules);
+                SaveResultToCache(isValid, publicKey, hardwareID, jsonLicence.MODULES);
             }
             catch (Exception ex)
             {
@@ -203,9 +211,17 @@ namespace LicenceController.Core.Services
                 var getCacheKey = CacheKeyProvider.GetCacheKey(publicKey, hardwareId);
                 var rawData = (isValid ? "True" : "False") + "-" + getCacheKey;
 
-                var modulesJson = JsonSerializer.Serialize(modules ?? new Dictionary<string, bool>());
+                // 1. Önce veriyi hazırla
+                var moduleList = modules ?? new Dictionary<string, bool>();
 
-                var dataToSign = rawData + "|" + modulesJson;
+                // 2. Modülleri string formatına getir (Key:Value,Key:Value)
+                string modulesString = string.Join(",", moduleList.Select(x => $"{x.Key}:{x.Value.ToString().ToUpper()}"));
+
+                // 3. dataToSign oluştur (Parantezlere dikkat!)
+                var dataToSign = rawData + (moduleList.Any() ? "|" + modulesString : "");
+
+                // 4. En son JSON'a çevir (Eğer Licence.json içine koyacaksan)
+                var modulesJson = JsonSerializer.Serialize(moduleList);
 
                 var signature = CacheSignatureHelper.ComputeHmac(dataToSign, publicKey);
 
@@ -217,7 +233,6 @@ namespace LicenceController.Core.Services
                 };
 
                 _cache.Set(getCacheKey, entry, TimeSpan.FromHours(25));
-                LogHelper.LogToFile($"SaveResultToCache: Cache'e kaydedildi. Key: {getCacheKey}, Data: {rawData}, Signature: {signature}");
             }
             catch(Exception ex)
             {
